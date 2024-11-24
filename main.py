@@ -5,8 +5,9 @@ from Walls import Wall
 from Snake import Snake
 from Apple import Apple, random_apple, refresh_apples
 from game_settings import screen_height, screen_width, nsquares, deltax, deltay, WHITE,xmax,xmin, ymax,ymin
+from Status import Status
 
-def draw_background():
+def draw_background(screen, walls):
     screen.fill((0,0,0))
     
     for it  in range(nsquares + 1    ):
@@ -36,8 +37,9 @@ def main():
         for w in [s1,s2,s3,s4]:
             walls.add(w)
 
+    #Set status monitos
+    status = Status(sna,apples,walls)
     #Main loop
-
     running = True
     while running:
         #Check for external interrupt
@@ -45,7 +47,7 @@ def main():
             if event.type == pygame.QUIT:
                 running = False
         
-        draw_background()
+        draw_background(screen,walls)
         #Create Apple if eaten orstart of the game
         refresh_apples(apples,sna.snake_segments)
         #Keyboard controls
@@ -64,14 +66,16 @@ def main():
             if apple.color == "green":
                 sna.setgrowth = -1
         #move
+        status.update()
+
         sna.snake_segments.draw(screen)
         #display
         apples.draw(screen)
         pygame.display.flip()
         clock.tick(5)
 
-pygame.quit()
-sys.exit()
+    pygame.quit()
+    sys.exit()
 
 if __name__ == "__main__":
     main()
