@@ -1,6 +1,6 @@
 import pygame
 import numpy as np
-from game_settings import deltax, deltay, BLUE, xmax,xmin, ymax, ymin
+from game_settings import deltax, deltay, BLUE, xmax,xmin, ymax, ymin, machine_mode, nsquares
 
 class SnakeSegment(pygame.sprite.Sprite):
     def __init__(self, posx, posy):
@@ -14,12 +14,20 @@ class SnakeSegment(pygame.sprite.Sprite):
 
 
 class Snake:
-    def __init__(self):
-        self.length = 1
+    def __init__(self,walls):
         self.segments = []
-        self.segments.append(np.array([1,0]))
-        self.segments.append(np.array([0,0]))
-        self.direction = np.array([1,0])
+        check = False
+        while not check:
+            head_x = np.random.randint(0,nsquares)
+            head_y = np.random.randint(0,nsquares)
+            nrot = np.random.randint(0,3)
+            rot_mat= np.array([[0,-1],[1,0] ])
+            self.direction = np.linalg.matrix_power(rot_mat,nrot).dot(np.array([1,0]))
+            check = max(np.array([head_x,head_y])-2*self.direction) < nsquares and min(np.array([head_x,head_y])-2*self.direction) >=0
+        
+        self.segments.append(np.array([head_x,head_y]))
+        self.segments.append(np.array([head_x,head_y])-self.direction)
+        self.segments.append(np.array([head_x,head_y])-self.direction-self.direction)
         self.snake_segments = pygame.sprite.Group()
         self.setgrowth = 0
 
@@ -42,14 +50,24 @@ class Snake:
     
     def update_state(self,keys):
         new_dir = np.array([0,0])
-        if keys[pygame.K_LEFT]:
-            new_dir += np.array([-1,0])
-        if keys[pygame.K_RIGHT]:
-            new_dir += np.array([1,0])
-        if keys[pygame.K_DOWN]:
-            new_dir += np.array([0,1])
-        if keys[pygame.K_UP]:
-            new_dir += np.array([0,-1])
+        if machine_mode:
+            if keys["left"]:
+                new_dir += np.array([-1,0])
+            if keys["right"]:
+                new_dir += np.array([1,0])
+            if keys["down"]:
+                new_dir += np.array([0,1])
+            if keys["up"]:
+                new_dir += np.array([0,-1])
+        else:
+            if keys[pygame.K_LEFT]:
+                new_dir += np.array([-1,0])
+            if keys[pygame.K_RIGHT]:
+                new_dir += np.array([1,0])
+            if keys[pygame.K_DOWN]:
+                new_dir += np.array([0,1])
+            if keys[pygame.K_UP]:
+                new_dir += np.array([0,-1])
         if new_dir.dot(new_dir) != 1:
             return
         if (new_dir + self.direction).dot(new_dir + self.direction) == 0:

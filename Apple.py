@@ -28,9 +28,9 @@ def random_apple(color):
 
 def refresh_apples(apples,othercol = None):
     while len(apples) < 3:
-        if len ([x for x in apples if x.color == "red"]) < 2:
+        if len ([x for x in apples if x.color == "red"]) < 1:
             newapple = random_apple("red")
-        if len ([x for x in apples if x.color == "green"]) < 1:
+        if len ([x for x in apples if x.color == "green"]) < 2:
             newapple = random_apple("green")
         if len(pygame.sprite.spritecollide(newapple, apples,False)) > 0:
             continue

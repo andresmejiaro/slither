@@ -18,7 +18,6 @@ class Status():
         
 
     def update(self):
-        self.snake_len = len(self.snake.snake_segments)
         self.pos = self.snake.segments[-1]
         self.northview = self.view(np.array([0,-1]))
         self.southview = self.view(np.array([0,1]))
@@ -35,17 +34,17 @@ class Status():
             tempSprite = SnakeSegment(*(self.pos + offset * direction))
             offset += 1
             if len(pygame.sprite.spritecollide(tempSprite,self.snake.snake_segments,False)):
-                response.append('s')
+                response.append('S')
                 continue
             applescol = pygame.sprite.spritecollide(tempSprite,self.apples, False)
             if len(applescol) > 0:
-                    response.append(applescol[0].color[0])
+                    response.append(applescol[0].color[0].upper())
                     continue
             wallcol = pygame.sprite.spritecollide(tempSprite, self.walls,False)
             if len(wallcol) > 0:
-                response.append('w')
+                response.append('W')
                 break
-            response.append(' ')
+            response.append('0')
             
         return response
 
@@ -56,7 +55,7 @@ class Status():
         for a in range(nsquares + 2):
             for b in range(nsquares + 2):
                 if a != py and b != px:
-                    z += 'o'
+                    z += ' '
                     continue
                 if a < py:
                     z += self.northview[-a -1]
@@ -70,7 +69,7 @@ class Status():
                 if b > px:
                     z += self.eastview[b - px - 1]
                     continue
-                z += 'x'
+                z += 'H'
                 
             z += '\n'
         print(z)

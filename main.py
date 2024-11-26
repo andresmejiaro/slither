@@ -4,8 +4,11 @@ import numpy as np
 from Walls import Wall
 from Snake import Snake
 from Apple import Apple, random_apple, refresh_apples
-from game_settings import screen_height, screen_width, nsquares, deltax, deltay, WHITE,xmax,xmin, ymax,ymin
+from game_settings import screen_height, screen_width, nsquares,\
+    deltax, deltay, WHITE,xmax,xmin, ymax, ymin, machine_mode
 from Status import Status
+from Agent import Agent
+
 
 def draw_background(screen, walls):
     screen.fill((0,0,0))
@@ -17,7 +20,8 @@ def draw_background(screen, walls):
     walls.draw(screen)
 
 def update_keys():
-    return pygame.key.get_pressed()  # Returns a list of all keys and their states
+    a = pygame.key.get_pressed()
+    return a  # Returns a list of all keys and their states
 
 def main():
     #init parameters
@@ -26,7 +30,6 @@ def main():
     clock = pygame.time.Clock()
     walls = pygame.sprite.Group()
     apples = pygame.sprite.Group()
-    sna = Snake()
 
     # Create walls
     for i in range( nsquares + 2):
@@ -37,8 +40,12 @@ def main():
         for w in [s1,s2,s3,s4]:
             walls.add(w)
 
-    #Set status monitos
+    sna = Snake(walls)
+    #Set status monitor
     status = Status(sna,apples,walls)
+    ## Start Agent
+    if  machine_mode:
+        agent = Agent(status)
     #Main loop
     running = True
     while running:
@@ -51,7 +58,10 @@ def main():
         #Create Apple if eaten orstart of the game
         refresh_apples(apples,sna.snake_segments)
         #Keyboard controls
-        keys = update_keys()
+        if not machine_mode:
+            keys = update_keys()
+        else:
+            keys = agent.action()
         sna.update_state(keys)
         sna.move()
         # death collisions
@@ -59,15 +69,14 @@ def main():
             print("ded")
             break
         #apple eatng
-        collided_apples = pygame.sprite.groupcollide(apples,sna.snake_segments,True, False)
+        collided_apples = pygame.sprite.groupcollide(apples, sna.snake_segments, True, False)
         for apple in collided_apples.keys():
             if apple.color == "red":
-                sna.setgrowth = 1
-            if apple.color == "green":
                 sna.setgrowth = -1
+            if apple.color == "green":
+                sna.setgrowth = 1
         #move
         status.update()
-
         sna.snake_segments.draw(screen)
         #display
         apples.draw(screen)
