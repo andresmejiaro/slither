@@ -18,8 +18,8 @@ class Snake:
         self.segments = []
         check = False
         while not check:
-            head_x = np.random.randint(0,nsquares)
-            head_y = np.random.randint(0,nsquares)
+            head_x = np.random.randint(3,nsquares-3)
+            head_y = np.random.randint(3,nsquares-3)
             nrot = np.random.randint(0,3)
             rot_mat= np.array([[0,-1],[1,0] ])
             self.direction = np.linalg.matrix_power(rot_mat,nrot).dot(np.array([1,0]))
@@ -29,6 +29,7 @@ class Snake:
         self.segments.append(np.array([head_x,head_y])-self.direction)
         self.segments.append(np.array([head_x,head_y])-self.direction-self.direction)
         self.snake_segments = pygame.sprite.Group()
+        print(f"segments created {self.segments}")
         self.setgrowth = 0
 
     def update_sprites(self):
@@ -80,7 +81,7 @@ class Snake:
         a = pygame.sprite.groupcollide(self.snake_segments,walls, False, False)
         for seg in self.snake_segments:
             ncol = pygame.sprite.spritecollide(seg, self.snake_segments, False)
-            if len(ncol) > 1:
+            if len(ncol) > 2:
                 return True
         if len(a) > 0:
             return True
