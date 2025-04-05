@@ -3,18 +3,25 @@ from Walls import Wall
 from Snake import Snake
 from Apple import Apple, random_apple, refresh_apples
 from game_settings import screen_height, screen_width, nsquares,\
-    deltax, deltay, WHITE,xmax,xmin, ymax, ymin, machine_mode
+    deltax, deltay, WHITE,xmax,xmin, ymax, ymin,  fps, rewards, max_steps
 
 
 class Game():
-    def __init__(self):
+    def __init__(self, headless = False):
         pygame.init()
-        self.screen = pygame.display.set_mode((screen_width, screen_height))
+        self.headless = headless
+        if not self.headless:
+            self.screen = pygame.display.set_mode((screen_width, screen_height))
+        else:
+            pygame.display.set_mode((1,1), pygame.HIDDEN)
         self.clock = pygame.time.Clock()
         self.walls = pygame.sprite.Group()
         self.apples = pygame.sprite.Group()
         self.create_walls()
         self.sna = Snake(self.walls)
+        self.status = None
+        self.score = 0
+        self.steps = 0
 
     def set_status(self,status):
         self.status = status
@@ -39,50 +46,60 @@ class Game():
 
 
     def loop(self):
-        self.walls.draw(self.screen)
 
-        self.draw_background()
         self.sna.update_sprites()
         refresh_apples(self.apples, self.sna.snake_segments)
-        self.sna.snake_segments.draw(self.screen)
-        self.apples.draw(self.screen) 
-        pygame.display.flip() 
-        self.status.update()
-        while True:
-            #Check for external interrupt
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    running = False
-            
+        if not self.headless:
+            self.walls.draw(self.screen)
             self.draw_background()
-            #Create Apple if eaten orstart of the game
+            self.sna.snake_segments.draw(self.screen)
+            self.apples.draw(self.screen) 
+            pygame.display.flip() 
+        if self.status is not None:
+            self.status.update()
+        while True:
+            if not self.headless:
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        running = False
+                self.draw_background()
+
             refresh_apples(self.apples,self.sna.snake_segments)
-            #Keyboard controls
-            if not machine_mode:
+            if not self.machine_mode:
                 keys = update_keys()
             else:
                 keys = self.agent.action(self.status.pl_state)
             self.sna.update_state(keys)
-            self.status.update()
             self.sna.move()
-            # death collisions
-            if self.sna.collided_snake(self.walls):
-                self.status.update()
-                print("ded")
+            if self.sna.collided_snake(self.walls) or len(self.sna.segments) == 0 or self.steps == max_steps:
+                if self.status is not None:
+                    self.status.update()
+                self.score += rewards["W"]
+                
+                print(f"ded: {self.score} {len(self.sna.segments)}")
                 break
-            #apple eatng
+            if self.status is not None:
+                self.status.update()
             collided_apples = pygame.sprite.groupcollide(self.apples, self.sna.snake_segments, True, False)
             for apple in collided_apples.keys():
                 if apple.color == "red":
                     self.sna.setgrowth = -1
+                    self.score += rewards["R"] - rewards["0"]
                 if apple.color == "green":
                     self.sna.setgrowth = 1
-            #move
-            self.sna.snake_segments.draw(self.screen)
-            #display
-            self.apples.draw(self.screen)
-            pygame.display.flip()
-            self.clock.tick(5)
+                    self.score += rewards["G"] - rewards["0"]
+            self.score += rewards["0"]
+            print(f"score: {self.score} {len(self.sna.segments)}")
+            self.steps += 1
+            if not self.headless:
+                #move
+                self.sna.snake_segments.draw(self.screen)
+                #display
+                self.apples.draw(self.screen)
+                pygame.display.flip()
+                self.clock.tick(fps)
+            else:
+                self.clock.tick(0)
 
     def __del__(self):
         pygame.quit()

@@ -19,6 +19,7 @@ class Status():
         if not self.file_exists:
             self.writer.writerow(["game_id", "turn", "north_view", "south_view", "east_view", "west_view"])
         self.new_game(game)
+        
 
 
     def new_game(self,game):
@@ -47,7 +48,8 @@ class Status():
         self.turn = 0
 
     def update(self):
-        self.pos = self.snake.segments[-1]
+        if len(self.snake.segments) > 0:
+            self.pos = self.snake.segments[-1]
         self.northview = self.view(np.array([0,-1]))
         self.southview = self.view(np.array([0,1]))
         self.eastview = self.view(np.array([1,0]))

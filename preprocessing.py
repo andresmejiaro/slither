@@ -1,6 +1,6 @@
 #%%
 import polars as pl
-
+from functools import reduce
 
 #%%
 def add_action(df):
@@ -66,4 +66,47 @@ def preprocess_games(df):
     df = df.group_by("game_id").map_groups(add_closest)
     return df
 
+
+def horizontal_reflection(df):
+    return df.rename({
+        "north_view":"south_view",
+        "south_view": "north_view"
+    })
+    
+
+def quarter_turn(df):
+    return df.rename({
+        "north_view":"west_view",
+        "west_view": "south_view",
+        "south_view":"east_view",
+        "east_view": "north_view"
+    })
+
+def composition(*funcs):
+    return reduce(lambda f, g: lambda x: g(f(x)),funcs)
+
+def add_sufix_to_gameid(df, suffix):
+    return df.with_columns(
+        pl.col("game_id")+pl.lit(suffix)
+    )
+
+
+def data_augmentation(df):
+    df1 = quarter_turn(df)
+    df2 = composition(quarter_turn, quarter_turn)(df)
+    df3 = composition(quarter_turn, quarter_turn,quarter_turn)(df)
+    df4 = horizontal_reflection(df)
+    df5 = composition(quarter_turn, horizontal_reflection)(df)
+    df6 = composition(quarter_turn, quarter_turn, horizontal_reflection)(df)
+    df7 = composition(quarter_turn,quarter_turn,quarter_turn, horizontal_reflection)(df)
+    df1 = add_sufix_to_gameid(df1,"a")
+    df2 = add_sufix_to_gameid(df2,"b")
+    df3 = add_sufix_to_gameid(df3,"c")
+    df4 = add_sufix_to_gameid(df4,"d")
+    df5 = add_sufix_to_gameid(df5,"e")
+    df6 = add_sufix_to_gameid(df6,"f")
+    df7 = add_sufix_to_gameid(df7,"g")
+    cols_order = df.columns  
+    dfs_aligned = [d.select(cols_order) for d in [df, df1, df2, df3, df4, df5, df6, df7]]
+    return pl.concat(dfs_aligned)
 

@@ -1,6 +1,6 @@
 import pygame
 import numpy as np
-from game_settings import deltax, deltay, BLUE, xmax,xmin, ymax, ymin, machine_mode, nsquares
+from game_settings import deltax, deltay, BLUE, xmax,xmin, ymax, ymin, nsquares
 
 class SnakeSegment(pygame.sprite.Sprite):
     def __init__(self, posx, posy):
@@ -51,7 +51,7 @@ class Snake:
     
     def update_state(self,keys):
         new_dir = np.array([0,0])
-        if machine_mode:
+        if self.machine_mode:
             if keys["left"]:
                 new_dir += np.array([-1,0])
             if keys["right"]:
