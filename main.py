@@ -2,7 +2,9 @@ from Status import Status
 from Agent import Agent
 from Game import Game
 import argparse
+import sys
 from game_settings import temperature, epsilonend, epsilonstart
+import sys
 
 def parse_args():
     parser = argparse.ArgumentParser(description="I'm a snake")
@@ -21,6 +23,9 @@ def training(args):
         agent.epsilon = 0
     for i in range(args.sessions):
     #    if i % 1 == 0:
+        if args.dontlearn and i % 10 == 0 and i != 0:
+            agent = Agent(save = args.save, load = args.load)
+            agent.epsilon = 0
         agent.temperature = 1
     #    else:
     #        agent.temperature = temperature - (temperature - 1)*i/args.sessions
@@ -37,14 +42,17 @@ def training(args):
         print(f"in game {i + 1} of {args.sessions}")
         if not args.dontlearn:
             agent.model_update()
-        if i % 5 == 4 or i == args.sessions - 1:
-            print("saving model....")
-            print(f"Saving to {args.save}")
-            try:
-                agent.nn.save(args.save)
-            except:
-                print("Fatal! Cannot save model (make sure is .h5 or .keras)")
-                sys.exit(1)
+            if i % 5 == 4 or i == args.sessions - 1:
+                print("saving model....")
+                print(f"Saving to {args.save}")
+                try:
+                    agent.nn.save(args.save)
+                except:
+                    print("Fatal! Cannot save model (make sure is .h5 or .keras)")
+                    sys.exit(1)
+            if i % 5 == 0 and i != 0:
+                print("retraining on best 10 models")
+                agent.replay_train()
         del game
         del status
 

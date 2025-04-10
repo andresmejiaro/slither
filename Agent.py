@@ -6,7 +6,7 @@ import sys
 from tensorflow import keras
 from tensorflow.keras import initializers
 from tensorflow.keras.models import load_model
-from preprocessing import add_closest
+from preprocessing import add_closest, load_filter_data
 from tensorflow.keras import layers
 from preprocessing import add_closest_sl, preprocess_games, data_augmentation
 from game_settings import rewards, gamma, alpha, episode_passes, temperature, close_reward_multiplier
@@ -61,9 +61,11 @@ class Agent():
         Y = Y/self.temperature
         rnum = np.random.random_sample()
         Y_soft = softmax_rowise(Y)
+        print("UP DOWN RiGHT LEFT")
         print(f"Y: {Y}")
         print(f"Y prob: {Y_soft}")
-        Y_prob_end = self.epsilon*np.array([1,1,1,1])/4  + ((1-self.epsilon))*Y_soft
+        ep2 = min(self.epsilon + 0.01   , 1)
+        Y_prob_end = ep2*np.array([1,1,1,1])/4  + ((1-ep2))*Y_soft
         print(f"Y prob end: {Y_prob_end}")
         Y_soft = np.cumsum(Y_prob_end)
         keys = {"left":False,
@@ -88,8 +90,11 @@ class Agent():
     #2 is right
     #3 is left
     
-    def update_data_prep(self):
-        df = data_augmentation(self.status.last_game)
+    def update_data_prep(self, df = None):
+        if df is None:
+            df = data_augmentation(self.status.last_game)
+        else:
+            data_augmentation(df)
         df = preprocess_games(df)
         df = df.filter(df["event"].is_not_null()).with_columns([
             pl.col("event").replace(rewards).cast(pl.Int32).alias("rewards")
@@ -114,11 +119,15 @@ class Agent():
         inp, Y, update, weights = self.update_data_prep()
         Ynew = Y + update
         self.nn.fit(inp,Ynew, epochs = episode_passes, batch_size = 1) #, sample_weight = weights
-        
+    
+    def replay_train(self):
+        df = load_filter_data()
+        inp, Y, update, weights = self.update_data_prep(df)
+        Ynew = Y + update
+        self.nn.fit(inp,Ynew, epochs = episode_passes, batch_size = 256)
 
 def distance_reward(df):
     distances = df.select(pl.selectors.ends_with("_G")).to_numpy()
     masked_distances = np.where(distances == -1, np.inf, distances)
     row_min = np.min(masked_distances, axis=1)
     return np.maximum(10-row_min,0)
-    

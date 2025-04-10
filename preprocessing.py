@@ -1,4 +1,3 @@
-#%%
 import polars as pl
 from functools import reduce
 
@@ -109,4 +108,15 @@ def data_augmentation(df):
     cols_order = df.columns  
     dfs_aligned = [d.select(cols_order) for d in [df, df1, df2, df3, df4, df5, df6, df7]]
     return pl.concat(dfs_aligned)
+
+
+def load_filter_data():
+    logs = pl.read_csv("snakelogs.csv")
+    count_green = preprocess_games(logs)
+    count_green = count_green.filter(pl.col("event") == "G")
+    count_green = count_green.group_by("game_id").count()
+    count_green = count_green.sort("count", descending=True).head(20)
+    logs = logs.filter(pl.col("game_id").is_in(count_green["game_id"]))
+    logs.write_csv("snakelogs.csv")
+    return logs
 
