@@ -1,4 +1,5 @@
 import polars as pl
+import numpy as np
 from functools import reduce
 
 #%%
@@ -48,21 +49,23 @@ def first_char(s: str, char: str)-> int:
    
 def add_closest(df):
     return df.with_columns([
-        pl.col(direction).shift(1).str.find(char).fill_null(-1).alias(f"{direction}_{char}")
+        pl.col(direction).str.find(char).fill_null(-1).alias(f"{direction}_{char}")
         for direction in ["north_view", "south_view", "east_view", "west_view"]
         for char in ["W", "S", "R", "G"]
     ])
 
 def add_closest_sl(df):
-    df = df.vstack(df)
+    #df = df.vstack(df)
     df = add_closest(df)
-    df = df[1,:]
+    #df = df[1,:]
     return df 
 
-def preprocess_games(df):
+def preprocess_games(df, rewards):
     df = df.group_by("game_id").map_groups(add_action)
     df = df.group_by("game_id").map_groups(add_event)
     df = df.group_by("game_id").map_groups(add_closest)
+    df = df.group_by("game_id").map_groups(align_status_rewards)
+    df = add_reward(df, rewards)
     return df
 
 
@@ -91,6 +94,7 @@ def add_sufix_to_gameid(df, suffix):
 
 
 def data_augmentation(df):
+    return df
     df1 = quarter_turn(df)
     df2 = composition(quarter_turn, quarter_turn)(df)
     df3 = composition(quarter_turn, quarter_turn,quarter_turn)(df)
@@ -110,13 +114,34 @@ def data_augmentation(df):
     return pl.concat(dfs_aligned)
 
 
-def load_filter_data():
+def load_filter_data(rewards):
     logs = pl.read_csv("snakelogs.csv")
-    count_green = preprocess_games(logs)
+    count_green = preprocess_games(logs, rewards)
     count_green = count_green.filter(pl.col("event") == "G")
     count_green = count_green.group_by("game_id").count()
-    count_green = count_green.sort("count", descending=True).head(20)
+    count_green = count_green.sort("count", descending=True)
+    top = count_green["count"][20]
+    count_green.filter(pl.column("count")>= top)
     logs = logs.filter(pl.col("game_id").is_in(count_green["game_id"]))
     logs.write_csv("snakelogs.csv")
     return logs
 
+def add_reward(df,rewards):
+    return df.with_columns([
+            pl.col("event").replace(rewards).cast(pl.Int32).alias("rewards")
+        ])
+
+def align_status_rewards(df):
+    df = df.with_columns(pl.col("event").shift(-1), pl.col("direction").shift(-1))
+    df = df.filter(pl.col("event").is_not_null())
+    return df
+
+def direction_one_hot(df):
+    action_categories = np.array(["north", "south", "east", "west"])
+    actions = df["direction"].to_numpy()
+
+    matches = actions[:, None] == action_categories  
+    indices = matches.argmax(axis=1)
+
+    onehot = np.eye(len(action_categories))[indices]
+    return onehot

@@ -1,11 +1,9 @@
-import numpy as np
-from Snake import SnakeSegment
 import pygame, csv, os, datetime 
-from game_settings import nsquares
-import numpy as np
 from game_settings import *
 import polars as pl
-from preprocessing import add_closest_sl
+import numpy as np
+from . import SnakeSegment
+from . import add_closest_sl
 
 class Status():
     #def __init__(self, snake, apples, walls):

@@ -1,13 +1,13 @@
 import pygame
-from Walls import Wall
-from Snake import Snake
-from Apple import Apple, random_apple, refresh_apples
+from . import Wall
+from . import Snake
+from . import Apple, random_apple, refresh_apples
 from game_settings import screen_height, screen_width, nsquares,\
     deltax, deltay, WHITE,xmax,xmin, ymax, ymin,  fps, rewards, max_steps
 
 
 class Game():
-    def __init__(self, headless = False):
+    def __init__(self, headless = False, debug = False):
         pygame.init()
         self.headless = headless
         if not self.headless:
@@ -22,6 +22,8 @@ class Game():
         self.status = None
         self.score = 0
         self.steps = 0
+        self.debug = debug
+        
 
     def set_status(self,status):
         self.status = status
@@ -100,6 +102,8 @@ class Game():
                 self.clock.tick(fps)
             else:
                 self.clock.tick(0)
+            if self.debug:
+                input("Press enter to continue")
 
     def __del__(self):
         pygame.quit()

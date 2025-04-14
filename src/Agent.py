@@ -4,11 +4,9 @@ import polars as pl
 import os
 import sys
 from tensorflow import keras
-from tensorflow.keras import initializers
+from tensorflow.keras import initializers, layers
 from tensorflow.keras.models import load_model
-from preprocessing import add_closest, load_filter_data
-from tensorflow.keras import layers
-from preprocessing import add_closest_sl, preprocess_games, data_augmentation
+from . import add_closest, load_filter_data, add_closest_sl, preprocess_games, data_augmentation, add_reward, align_status_rewards, direction_one_hot
 from game_settings import rewards, gamma, alpha, episode_passes, temperature, close_reward_multiplier
 np.set_printoptions(precision=2, suppress=True)
 
@@ -32,7 +30,8 @@ class Agent():
                 layers.LeakyReLU(negative_slope= 0.1),
                 layers.Dense(16),
                 layers.LeakyReLU(negative_slope= 0.1),
-                layers.Dense(4, activation="linear",bias_initializer=initializers.constant(rewards["W"]))
+                #layers.Dense(4, activation="linear",bias_initializer=initializers.constant(rewards["W"]))
+                layers.Dense(4, activation="linear")
             ])
         else:
             try:
@@ -61,10 +60,10 @@ class Agent():
         Y = Y/self.temperature
         rnum = np.random.random_sample()
         Y_soft = softmax_rowise(Y)
-        print("UP DOWN RiGHT LEFT")
+        print("UP DOWN RIGHT LEFT")
         print(f"Y: {Y}")
         print(f"Y prob: {Y_soft}")
-        ep2 = min(self.epsilon + 0.01   , 1)
+        ep2 = self.epsilon #min(self.epsilon + 0.01   , 1)
         Y_prob_end = ep2*np.array([1,1,1,1])/4  + ((1-ep2))*Y_soft
         print(f"Y prob end: {Y_prob_end}")
         Y_soft = np.cumsum(Y_prob_end)
@@ -89,25 +88,27 @@ class Agent():
     #1 is down
     #2 is right
     #3 is left
-    
+
+
+
+
     def update_data_prep(self, df = None):
         if df is None:
             df = data_augmentation(self.status.last_game)
         else:
             data_augmentation(df)
-        df = preprocess_games(df)
-        df = df.filter(df["event"].is_not_null()).with_columns([
-            pl.col("event").replace(rewards).cast(pl.Int32).alias("rewards")
-        ])
+        df = preprocess_games(df, rewards)
         inp = df[:,"north_view_W":"west_view_G"].to_numpy()
         close_reward = close_reward_multiplier * distance_reward(df)
         Y = self.nn.predict(inp)
         max_next = np.max(Y, axis = 1)
-        action_categories = ["north", "south", "east", "west"]
-        actions = df["direction"].to_numpy()
-        indices = np.array([action_categories.index(a) for a in actions])
-        onehot = np.eye(len(action_categories))[indices]
+        game_ouputs = pl.DataFrame({"game_id":df["game_id"],"max_next":max_next})
+        game_ouputs = game_ouputs.with_columns(
+            pl.col("max_next").shift(-1).over("game_id").fill_null(0)
+        )
+        max_next = game_ouputs[:,"max_next"].to_numpy()
         max_next = np.tile(max_next[:,np.newaxis],4)
+        onehot = direction_one_hot(df)
         weights =np.log(np.abs(df["rewards"].to_numpy() + close_reward) +1 )
         r = np.tile((df["rewards"].to_numpy() + close_reward)[:,np.newaxis],4)
         update = alpha*( r  + gamma*max_next  - Y)*onehot
@@ -121,7 +122,8 @@ class Agent():
         self.nn.fit(inp,Ynew, epochs = episode_passes, batch_size = 1) #, sample_weight = weights
     
     def replay_train(self):
-        df = load_filter_data()
+        df = load_filter_data(rewards)
+        df = data_augmentation(df)
         inp, Y, update, weights = self.update_data_prep(df)
         Ynew = Y + update
         self.nn.fit(inp,Ynew, epochs = episode_passes, batch_size = 256)

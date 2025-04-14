@@ -1,6 +1,6 @@
-from Status import Status
-from Agent import Agent
-from Game import Game
+from src.Status import Status
+from src.Agent import Agent
+from src.Game import Game
 import argparse
 import sys
 from game_settings import temperature, epsilonend, epsilonstart
@@ -13,7 +13,8 @@ def parse_args():
     parser.add_argument("-dontlearn",action="store_true",help="Don't update model on each training")
     parser.add_argument("-headless",action="store_true", help="Dont' show game while training")
     parser.add_argument("-sessions", type=int, help="number of training sessions", default=10)
-    parser.add_argument("-play",action="store_true", help="Play the game")   
+    parser.add_argument("-play",action="store_true", help="Play the game")
+    parser.add_argument("-debug", action="store_true", help="Stop at each play")   
     return parser.parse_args()
 
 
@@ -31,7 +32,7 @@ def training(args):
     #        agent.temperature = temperature - (temperature - 1)*i/args.sessions
         if not args.dontlearn:
             agent.epsilon = epsilonstart - (epsilonstart - epsilonend)*i/args.sessions
-        game = Game(headless = args.headless)
+        game = Game(headless = args.headless, debug=args.debug)
         game.sna.machine_mode = True
         game.machine_mode = True
         status = Status(game)
@@ -50,8 +51,8 @@ def training(args):
                 except:
                     print("Fatal! Cannot save model (make sure is .h5 or .keras)")
                     sys.exit(1)
-            if i % 5 == 0 and i != 0:
-                print("retraining on best 10 models")
+            if i % 5000 == 0 and i != 0:
+                print("retraining on best 20 games")
                 agent.replay_train()
         del game
         del status
