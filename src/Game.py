@@ -23,6 +23,9 @@ class Game():
         self.score = 0
         self.steps = 0
         self.debug = debug
+        self.last_action = ""
+        self.last_reward = 0
+        self.dead = False
         
 
     def set_status(self,status):
@@ -30,6 +33,7 @@ class Game():
     
     def set_agent(self, agent):
         self.agent = agent
+    
     def create_walls(self):
         for i in range( nsquares + 2):
             s1 = Wall(-1, (i-1)  )
@@ -48,7 +52,6 @@ class Game():
 
 
     def loop(self):
-
         self.sna.update_sprites()
         refresh_apples(self.apples, self.sna.snake_segments)
         if not self.headless:
@@ -57,41 +60,42 @@ class Game():
             self.sna.snake_segments.draw(self.screen)
             self.apples.draw(self.screen) 
             pygame.display.flip() 
-        if self.status is not None:
-            self.status.update()
+        
         while True:
+            if self.status is not None:
+                self.status.collect_board()
             if not self.headless:
                 for event in pygame.event.get():
                     if event.type == pygame.QUIT:
                         running = False
                 self.draw_background()
-
             refresh_apples(self.apples,self.sna.snake_segments)
             if not self.machine_mode:
                 keys = update_keys()
             else:
                 keys = self.agent.action(self.status.pl_state)
             self.sna.update_state(keys)
+            self.last_action = self.sna.last_action
             self.sna.move()
+            self.last_reward = rewards["0"]
             if self.sna.collided_snake(self.walls) or len(self.sna.segments) == 0 or self.steps == max_steps:
-                if self.status is not None:
-                    self.status.update()
-                self.score += rewards["W"]
-                
+                self.last_reward = rewards["W"]
                 print(f"ded: {self.score} {len(self.sna.segments)}")
-                break
-            if self.status is not None:
-                self.status.update()
+                self.dead = True
             collided_apples = pygame.sprite.groupcollide(self.apples, self.sna.snake_segments, True, False)
             for apple in collided_apples.keys():
                 if apple.color == "red":
                     self.sna.setgrowth = -1
-                    self.score += rewards["R"] - rewards["0"]
+                    self.last_reward = rewards["R"]
                 if apple.color == "green":
                     self.sna.setgrowth = 1
-                    self.score += rewards["G"] - rewards["0"]
-            self.score += rewards["0"]
+                    self.last_reward = rewards["G"]
+            self.score += self.last_reward
+            if self.status is not None:
+                self.status.update()
             print(f"score: {self.score} {len(self.sna.segments)}")
+            if self.dead:
+                break
             self.steps += 1
             if not self.headless:
                 #move
@@ -105,8 +109,6 @@ class Game():
             if self.debug:
                 input("Press enter to continue")
 
-    def __del__(self):
-        pygame.quit()
 
     
 

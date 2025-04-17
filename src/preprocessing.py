@@ -60,29 +60,45 @@ def add_closest_sl(df):
     #df = df[1,:]
     return df 
 
-def preprocess_games(df, rewards):
-    df = df.group_by("game_id").map_groups(add_action)
-    df = df.group_by("game_id").map_groups(add_event)
+def preprocess_games(df):
     df = df.group_by("game_id").map_groups(add_closest)
-    df = df.group_by("game_id").map_groups(align_status_rewards)
-    df = add_reward(df, rewards)
     return df
 
 
 def horizontal_reflection(df):
-    return df.rename({
+    df = df.rename({
         "north_view":"south_view",
         "south_view": "north_view"
     })
+    changes = {
+        "north":"south",
+        "south": "north"
+    }
+    df = df.with_columns(
+        pl.col("action").replace(changes).alias("col")
+    )
+
+    return df
     
 
 def quarter_turn(df):
-    return df.rename({
+    df = df.rename({
         "north_view":"west_view",
         "west_view": "south_view",
         "south_view":"east_view",
         "east_view": "north_view"
     })
+    changes = {
+        "north":"west",
+        "west": "south",
+        "south":"east",
+        "east": "north"
+    }
+    df = df.with_columns(
+        pl.col("action").replace(changes).alias("col")
+    )
+
+    return df
 
 def composition(*funcs):
     return reduce(lambda f, g: lambda x: g(f(x)),funcs)
@@ -114,16 +130,8 @@ def data_augmentation(df):
     return pl.concat(dfs_aligned)
 
 
-def load_filter_data(rewards):
+def load_filter_data():
     logs = pl.read_csv("snakelogs.csv")
-    count_green = preprocess_games(logs, rewards)
-    count_green = count_green.filter(pl.col("event") == "G")
-    count_green = count_green.group_by("game_id").count()
-    count_green = count_green.sort("count", descending=True)
-    top = count_green["count"][20]
-    count_green.filter(pl.column("count")>= top)
-    logs = logs.filter(pl.col("game_id").is_in(count_green["game_id"]))
-    logs.write_csv("snakelogs.csv")
     return logs
 
 def add_reward(df,rewards):
@@ -138,7 +146,7 @@ def align_status_rewards(df):
 
 def direction_one_hot(df):
     action_categories = np.array(["north", "south", "east", "west"])
-    actions = df["direction"].to_numpy()
+    actions = df["action"].to_numpy()
 
     matches = actions[:, None] == action_categories  
     indices = matches.argmax(axis=1)

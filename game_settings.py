@@ -8,9 +8,9 @@ rewards = {"0": -1, "W": -1000, "R": -200, "G": 500, "S": -1000}
 
 # Training hyperparams
 gamma = 0.9
-alpha = 0.01
+alpha = 0.05
+nn_learningrate = 0.01
 episode_passes = 1
-temperature = 1 #legacy do not change 
 close_reward_multiplier = 0
 epsilonstart = 1
 epsilonend = 0.1

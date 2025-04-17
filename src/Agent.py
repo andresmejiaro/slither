@@ -7,7 +7,7 @@ from tensorflow import keras
 from tensorflow.keras import initializers, layers
 from tensorflow.keras.models import load_model
 from . import add_closest, load_filter_data, add_closest_sl, preprocess_games, data_augmentation, add_reward, align_status_rewards, direction_one_hot
-from game_settings import rewards, gamma, alpha, episode_passes, temperature, close_reward_multiplier
+from game_settings import rewards, gamma, alpha, episode_passes, close_reward_multiplier, nn_learningrate
 np.set_printoptions(precision=2, suppress=True)
 
 
@@ -20,11 +20,13 @@ class Agent():
     def __init__(self,save = None, load = None):
         self.save = save
         self.load = load
-        
-        
         if self.load is None or not os.path.exists(self.load):
             self.nn = keras.Sequential([
                 layers.Dense(16, input_shape = (16,)),
+                layers.LeakyReLU(negative_slope= 0.1),
+                layers.Dense(32),
+                layers.LeakyReLU(negative_slope= 0.1),
+                layers.Dense(64),
                 layers.LeakyReLU(negative_slope= 0.1),
                 layers.Dense(32),
                 layers.LeakyReLU(negative_slope= 0.1),
@@ -37,34 +39,37 @@ class Agent():
             try:
                 self.nn = load_model(self.load)
             except:
-                print("Fatal! Cannot load model (make sure is .h5)")
+                print("Fatal! Cannot load model (make sure is .h5 or .keras)")
                 sys.exit(1)
         self.nn.compile(
-            optimizer=keras.optimizers.Adam(learning_rate=0.01),
+            optimizer=keras.optimizers.Adam(learning_rate=nn_learningrate),
             loss="mse"  
         )
-        self.status = None
-        self.temperature = temperature
         self.game_history = pl.DataFrame()
         self.epsilon = 0
+        self.status = None
 
     def set_status(self, status):
         self.status = status
+
+    def model_update(self):
+        if self.status is None:
+            raise ValueError("Model doesn't have a valid status")
+        inp, Y, update = self.update_data_prep()
+        Ynew = Y + update
+        self.nn.fit(inp,Ynew, epochs = episode_passes, batch_size = 1) #, sample_weight = weights
 
 
     def action(self, df):
         df = add_closest_sl(df)
         inp = df[:,"north_view_W":"west_view_G"].to_numpy()
         Y = self.nn.predict(inp, verbose = 0)
-        print(f"Yor: {Y}")
-        Y = Y/self.temperature
         rnum = np.random.random_sample()
         Y_soft = softmax_rowise(Y)
-        print("UP DOWN RIGHT LEFT")
+        print("NORTH SOUTH EAST WEST")
         print(f"Y: {Y}")
         print(f"Y prob: {Y_soft}")
-        ep2 = self.epsilon #min(self.epsilon + 0.01   , 1)
-        Y_prob_end = ep2*np.array([1,1,1,1])/4  + ((1-ep2))*Y_soft
+        Y_prob_end = self.epsilon*np.array([1,1,1,1])/4  + ((1-self.epsilon))*Y_soft
         print(f"Y prob end: {Y_prob_end}")
         Y_soft = np.cumsum(Y_prob_end)
         keys = {"left":False,
@@ -95,9 +100,10 @@ class Agent():
     def update_data_prep(self, df = None):
         if df is None:
             df = data_augmentation(self.status.last_game)
+            #df = self.status.last_game
         else:
             data_augmentation(df)
-        df = preprocess_games(df, rewards)
+        df = preprocess_games(df)
         inp = df[:,"north_view_W":"west_view_G"].to_numpy()
         close_reward = close_reward_multiplier * distance_reward(df)
         Y = self.nn.predict(inp)
@@ -109,24 +115,18 @@ class Agent():
         max_next = game_ouputs[:,"max_next"].to_numpy()
         max_next = np.tile(max_next[:,np.newaxis],4)
         onehot = direction_one_hot(df)
-        weights =np.log(np.abs(df["rewards"].to_numpy() + close_reward) +1 )
-        r = np.tile((df["rewards"].to_numpy() + close_reward)[:,np.newaxis],4)
+        #weights =np.log(np.abs(df["reward"].to_numpy() + close_reward) +1 )
+        r = np.tile((df["reward"].to_numpy() + close_reward)[:,np.newaxis],4)
         update = alpha*( r  + gamma*max_next  - Y)*onehot
-        return (inp, Y, update, weights)
-    
-    def model_update(self):
-        if self.status is None:
-            raise ValueError("Model doesn't have a valid status")
-        inp, Y, update, weights = self.update_data_prep()
-        Ynew = Y + update
-        self.nn.fit(inp,Ynew, epochs = episode_passes, batch_size = 1) #, sample_weight = weights
+        return (inp, Y, update)
     
     def replay_train(self):
-        df = load_filter_data(rewards)
+        df = load_filter_data()
         df = data_augmentation(df)
-        inp, Y, update, weights = self.update_data_prep(df)
+        inp, Y, update = self.update_data_prep(df)
         Ynew = Y + update
         self.nn.fit(inp,Ynew, epochs = episode_passes, batch_size = 256)
+    
 
 def distance_reward(df):
     distances = df.select(pl.selectors.ends_with("_G")).to_numpy()

@@ -3,8 +3,9 @@ from src.Agent import Agent
 from src.Game import Game
 import argparse
 import sys
-from game_settings import temperature, epsilonend, epsilonstart
+from game_settings import epsilonend, epsilonstart
 import sys
+import pygame
 
 def parse_args():
     parser = argparse.ArgumentParser(description="I'm a snake")
@@ -27,9 +28,6 @@ def training(args):
         if args.dontlearn and i % 10 == 0 and i != 0:
             agent = Agent(save = args.save, load = args.load)
             agent.epsilon = 0
-        agent.temperature = 1
-    #    else:
-    #        agent.temperature = temperature - (temperature - 1)*i/args.sessions
         if not args.dontlearn:
             agent.epsilon = epsilonstart - (epsilonstart - epsilonend)*i/args.sessions
         game = Game(headless = args.headless, debug=args.debug)
@@ -51,9 +49,12 @@ def training(args):
                 except:
                     print("Fatal! Cannot save model (make sure is .h5 or .keras)")
                     sys.exit(1)
-            if i % 5000 == 0 and i != 0:
+            if i % 200000 == 0 and i != 0:
                 print("retraining on best 20 games")
                 agent.replay_train()
+        if not args.headless:
+            pygame.quit()
+        status.close()
         del game
         del status
 
@@ -65,7 +66,8 @@ def main():
         game = Game()
         game.sna.machine_mode = False
         game.machine_mode = False
-        game.loop()  
+        game.loop() 
+        pygame.quit() 
     else:
         training(args)
 

@@ -31,6 +31,7 @@ class Snake:
         self.snake_segments = pygame.sprite.Group()
         print(f"segments created {self.segments}")
         self.setgrowth = 0
+        self.last_action = ""
 
     def update_sprites(self):
         self.snake_segments.empty()
@@ -54,21 +55,29 @@ class Snake:
         if self.machine_mode:
             if keys["left"]:
                 new_dir += np.array([-1,0])
+                self.last_action = "west"
             if keys["right"]:
                 new_dir += np.array([1,0])
+                self.last_action = "east"
             if keys["down"]:
                 new_dir += np.array([0,1])
+                self.last_action = "south"
             if keys["up"]:
                 new_dir += np.array([0,-1])
+                self.last_action = "north"
         else:
             if keys[pygame.K_LEFT]:
                 new_dir += np.array([-1,0])
+                self.last_action = "west"
             if keys[pygame.K_RIGHT]:
                 new_dir += np.array([1,0])
+                self.last_action = "east"
             if keys[pygame.K_DOWN]:
                 new_dir += np.array([0,1])
+                self.last_action = "south"
             if keys[pygame.K_UP]:
                 new_dir += np.array([0,-1])
+                self.last_action = "north"
         if new_dir.dot(new_dir) != 1:
             return
         if (new_dir + self.direction).dot(new_dir + self.direction) == 0:

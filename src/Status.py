@@ -15,8 +15,11 @@ class Status():
         self.log_file = open(self.log_filename,"a", newline="")
         self.writer = csv.writer(self.log_file)
         if not self.file_exists:
-            self.writer.writerow(["game_id", "turn", "north_view", "south_view", "east_view", "west_view"])
+            self.writer.writerow(["game_id", "turn", "north_view", "south_view", "east_view", "west_view", "action", "reward"])
+            self.log_file.flush()
+            
         self.new_game(game)
+        self.game = game
         
 
 
@@ -39,34 +42,48 @@ class Status():
             "south_view": pl.Utf8,
             "east_view": pl.Utf8,
             "west_view": pl.Utf8,
+            "action": pl.String,
+            "reward": pl.Int64
         }
         self.pl_state = pl.DataFrame(schema=schema)
         self.last_game = pl.DataFrame(schema=schema)
         self.game_id = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.turn = 0
+        self.turn = -1
+        self.first = True
 
-    def update(self):
+    
+    def collect_board(self):
         if len(self.snake.segments) > 0:
             self.pos = self.snake.segments[-1]
         self.northview = self.view(np.array([0,-1]))
         self.southview = self.view(np.array([0,1]))
         self.eastview = self.view(np.array([1,0]))
         self.westview = self.view(np.array([-1,0]))
-        self.turn += 1        
         self.pl_state = pl.DataFrame([{
             "game_id": self.game_id,
             "turn": self.turn,
             "north_view":"".join( self.northview),
             "south_view":"".join( self.southview),
             "east_view": "".join(self.eastview),
-            "west_view": "".join(self.westview)
+            "west_view": "".join(self.westview),
+            "action": "",
+            "reward": 0
         }])
-        self.last_game = self.last_game.vstack(self.pl_state)
+    
+    
+    
+    
+    def update(self):
+        self.turn += 1        
+        self.pl_state["action"][0]= self.game.last_action,
+        self.pl_state["reward"][0]= self.game.last_reward
         self.printview()
+        self.last_game = self.last_game.vstack(self.pl_state)
         self.logState()
+        
 
     def logState(self):
-        self.writer.writerow([self.game_id, self.turn,''.join(self.northview),''.join(self.southview),''.join(self.eastview),''.join(self.westview)])
+        self.writer.writerow([self.game_id, self.turn,''.join(self.northview),''.join(self.southview),''.join(self.eastview),''.join(self.westview), self.game.last_action, self.game.last_reward])
 
     def view(self, direction = np.array([1,0])):
         response = []
@@ -142,6 +159,7 @@ class Status():
             z += '\n'
         print(z)
 
-    def __del__(self):
+    def close(self):
+        self.log_file.flush()
         self.log_file.close()
     
