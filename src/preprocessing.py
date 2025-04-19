@@ -75,7 +75,7 @@ def horizontal_reflection(df):
         "south": "north"
     }
     df = df.with_columns(
-        pl.col("action").replace(changes).alias("col")
+        pl.col("action").replace(changes).alias("action")
     )
 
     return df
@@ -110,7 +110,7 @@ def add_sufix_to_gameid(df, suffix):
 
 
 def data_augmentation(df):
-    return df
+    #return df
     df1 = quarter_turn(df)
     df2 = composition(quarter_turn, quarter_turn)(df)
     df3 = composition(quarter_turn, quarter_turn,quarter_turn)(df)
@@ -130,8 +130,8 @@ def data_augmentation(df):
     return pl.concat(dfs_aligned)
 
 
-def load_filter_data():
-    logs = pl.read_csv("snakelogs.csv")
+def load_filter_data(logfile):
+    logs = pl.read_csv(logfile)
     return logs
 
 def add_reward(df,rewards):
@@ -153,3 +153,4 @@ def direction_one_hot(df):
 
     onehot = np.eye(len(action_categories))[indices]
     return onehot
+

@@ -9,7 +9,7 @@ from tensorflow.keras.models import load_model
 from . import add_closest, load_filter_data, add_closest_sl, preprocess_games, data_augmentation, add_reward, align_status_rewards, direction_one_hot
 from game_settings import rewards, gamma, alpha, episode_passes, close_reward_multiplier, nn_learningrate
 np.set_printoptions(precision=2, suppress=True)
-
+from tqdm import tqdm
 
 
 def softmax_rowise(X):
@@ -55,9 +55,14 @@ class Agent():
     def model_update(self):
         if self.status is None:
             raise ValueError("Model doesn't have a valid status")
-        inp, Y, update = self.update_data_prep()
-        Ynew = Y + update
-        self.nn.fit(inp,Ynew, epochs = episode_passes, batch_size = 1) #, sample_weight = weights
+        print(self.status.last_game)
+        df = data_augmentation(self.status.last_game)
+        games = df["game_id"].unique()
+        for game in games:
+            df2 = df.filter(pl.col("game_id") == game)
+            inp, Y, update = self.update_data_prep(df2)
+            Ynew = Y + update
+            self.nn.fit(inp,Ynew, epochs = episode_passes, batch_size = 1) #, sample_weight = weights
 
 
     def action(self, df):
@@ -97,12 +102,7 @@ class Agent():
 
 
 
-    def update_data_prep(self, df = None):
-        if df is None:
-            df = data_augmentation(self.status.last_game)
-            #df = self.status.last_game
-        else:
-            data_augmentation(df)
+    def update_data_prep(self, df):
         df = preprocess_games(df)
         inp = df[:,"north_view_W":"west_view_G"].to_numpy()
         close_reward = close_reward_multiplier * distance_reward(df)
@@ -120,13 +120,22 @@ class Agent():
         update = alpha*( r  + gamma*max_next  - Y)*onehot
         return (inp, Y, update)
     
-    def replay_train(self):
-        df = load_filter_data()
+    def replay_train(self, df):
         df = data_augmentation(df)
         inp, Y, update = self.update_data_prep(df)
         Ynew = Y + update
         self.nn.fit(inp,Ynew, epochs = episode_passes, batch_size = 256)
     
+
+    def replay_train_individual(self, df):
+        df = data_augmentation(df)
+        games = df["game_id"].unique()
+        for game in tqdm(games, descr ="Training on replay"):
+            df2 = df.filter(pl.col("game_id") == game)
+            inp, Y, update = self.update_data_prep(df2)
+            Ynew = Y + update
+            self.nn.fit(inp,Ynew, epochs = episode_passes, batch_size = 1) #, sample_weight = weights
+        
 
 def distance_reward(df):
     distances = df.select(pl.selectors.ends_with("_G")).to_numpy()

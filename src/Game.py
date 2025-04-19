@@ -2,18 +2,14 @@ import pygame
 from . import Wall
 from . import Snake
 from . import Apple, random_apple, refresh_apples
-from game_settings import screen_height, screen_width, nsquares,\
-    deltax, deltay, WHITE,xmax,xmin, ymax, ymin,  fps, rewards, max_steps
+from game_settings import  nsquares, deltax, deltay, WHITE,xmax,xmin, ymax, ymin,  fps, rewards, max_steps
 
 
 class Game():
-    def __init__(self, headless = False, debug = False):
-        pygame.init()
+    def __init__(self, headless = False, debug = False, screen = None):
+       
         self.headless = headless
-        if not self.headless:
-            self.screen = pygame.display.set_mode((screen_width, screen_height))
-        else:
-            pygame.display.set_mode((1,1), pygame.HIDDEN)
+        self.screen = screen
         self.clock = pygame.time.Clock()
         self.walls = pygame.sprite.Group()
         self.apples = pygame.sprite.Group()

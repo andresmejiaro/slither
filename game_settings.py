@@ -4,12 +4,12 @@ screen_width, screen_height = 800, 600
 nsquares = 10
 fps = 5
 max_steps = 500
-rewards = {"0": -1, "W": -1000, "R": -200, "G": 500, "S": -1000}
+rewards = {"0": -1, "W": -1000, "R": -100, "G": 500, "S": -1001}
 
 # Training hyperparams
 gamma = 0.9
-alpha = 0.05
-nn_learningrate = 0.01
+alpha = 0.1
+nn_learningrate = 0.001
 episode_passes = 1
 close_reward_multiplier = 0
 epsilonstart = 1

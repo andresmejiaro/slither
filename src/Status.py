@@ -4,13 +4,14 @@ import polars as pl
 import numpy as np
 from . import SnakeSegment
 from . import add_closest_sl
+import random
 
 class Status():
     #def __init__(self, snake, apples, walls):
-    def __init__(self, game):
+    def __init__(self, game, logfile):
         
         # logging related stuff
-        self.log_filename="snakelogs.csv"
+        self.log_filename=logfile
         self.file_exists = os.path.isfile(self.log_filename)
         self.log_file = open(self.log_filename,"a", newline="")
         self.writer = csv.writer(self.log_file)
@@ -47,7 +48,7 @@ class Status():
         }
         self.pl_state = pl.DataFrame(schema=schema)
         self.last_game = pl.DataFrame(schema=schema)
-        self.game_id = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.game_id = f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}_{random.randint(1000,9999)}"
         self.turn = -1
         self.first = True
 
@@ -75,8 +76,11 @@ class Status():
     
     def update(self):
         self.turn += 1        
-        self.pl_state["action"][0]= self.game.last_action,
-        self.pl_state["reward"][0]= self.game.last_reward
+        self.pl_state = self.pl_state.with_columns([
+            pl.lit(self.game.last_action).alias("action"),
+                pl.lit(self.game.last_reward).alias("reward")
+        ])
+        self.pl_state = self.pl_state.cast(self.last_game.schema)
         self.printview()
         self.last_game = self.last_game.vstack(self.pl_state)
         self.logState()

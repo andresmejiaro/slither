@@ -3,19 +3,22 @@ from src.Agent import Agent
 from src.Game import Game
 import argparse
 import sys
-from game_settings import epsilonend, epsilonstart
+from game_settings import epsilonend, epsilonstart, screen_height, screen_width
 import sys
 import pygame
+from tensorflow.keras.models import load_model
 
 def parse_args():
     parser = argparse.ArgumentParser(description="I'm a snake")
     parser.add_argument("-save", type=str, default="models/latest.keras", help="Save model route")
     parser.add_argument("-load", type=str, default="models/latest.keras", help="Load model route")
+    parser.add_argument("-logfile", type=str, default="logs/snakelog.csv", help="Log route")
     parser.add_argument("-dontlearn",action="store_true",help="Don't update model on each training")
     parser.add_argument("-headless",action="store_true", help="Dont' show game while training")
     parser.add_argument("-sessions", type=int, help="number of training sessions", default=10)
     parser.add_argument("-play",action="store_true", help="Play the game")
-    parser.add_argument("-debug", action="store_true", help="Stop at each play")   
+    parser.add_argument("-debug", action="store_true", help="Stop at each play")
+                           
     return parser.parse_args()
 
 
@@ -23,6 +26,11 @@ def training(args):
     agent = Agent(save = args.save, load = args.load)
     if args.dontlearn:
         agent.epsilon = 0
+    if not args.headless:
+        pygame.init()
+        screen = pygame.display.set_mode((screen_width, screen_height))
+    else:
+        screen = pygame.display.set_mode((1,1), pygame.HIDDEN)
     for i in range(args.sessions):
     #    if i % 1 == 0:
         if args.dontlearn and i % 10 == 0 and i != 0:
@@ -30,10 +38,10 @@ def training(args):
             agent.epsilon = 0
         if not args.dontlearn:
             agent.epsilon = epsilonstart - (epsilonstart - epsilonend)*i/args.sessions
-        game = Game(headless = args.headless, debug=args.debug)
+        game = Game(headless = args.headless, debug=args.debug, screen = screen)
         game.sna.machine_mode = True
         game.machine_mode = True
-        status = Status(game)
+        status = Status(game, args.logfile)
         game.set_status(status)
         agent.set_status(status)
         game.set_agent(agent)
@@ -52,18 +60,27 @@ def training(args):
             if i % 200000 == 0 and i != 0:
                 print("retraining on best 20 games")
                 agent.replay_train()
-        if not args.headless:
-            pygame.quit()
+        else:
+            if i % 5 == 0 and i != 0:
+                try:
+                    agent.nn = load_model(args.load)
+                    print("updated model")
+                except:
+                    print("skipping model load") 
         status.close()
         del game
         del status
+    if not args.headless:
+        pygame.quit()
 
 def main():
     
     args = parse_args()
 
     if args.play:
-        game = Game()
+        pygame.init()
+        screen =         screen = pygame.display.set_mode((screen_width, screen_height))
+        game = Game(screen = screen)
         game.sna.machine_mode = False
         game.machine_mode = False
         game.loop() 
