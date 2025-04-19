@@ -6,7 +6,8 @@ import sys
 from tensorflow import keras
 from tensorflow.keras import initializers, layers
 from tensorflow.keras.models import load_model
-from . import add_closest, load_filter_data, add_closest_sl, preprocess_games, data_augmentation, add_reward, align_status_rewards, direction_one_hot
+from tensorflow.keras import regularizers
+from . import add_inputs, load_filter_data, add_closest_sl, preprocess_games, data_augmentation, add_reward, align_status_rewards, direction_one_hot
 from game_settings import rewards, gamma, alpha, episode_passes, close_reward_multiplier, nn_learningrate
 np.set_printoptions(precision=2, suppress=True)
 from tqdm import tqdm
@@ -21,19 +22,18 @@ class Agent():
         self.save = save
         self.load = load
         if self.load is None or not os.path.exists(self.load):
+ 
             self.nn = keras.Sequential([
-                layers.Dense(16, input_shape = (16,)),
+                layers.Dense(128, input_shape = (66,),kernel_regularizer = regularizers.l2(0.001)),
                 layers.LeakyReLU(negative_slope= 0.1),
-                layers.Dense(32),
+                layers.Dense(64,kernel_regularizer = regularizers.l2(0.001)),
                 layers.LeakyReLU(negative_slope= 0.1),
-                layers.Dense(64),
+                layers.Dense(32,kernel_regularizer = regularizers.l2(0.001)),
                 layers.LeakyReLU(negative_slope= 0.1),
-                layers.Dense(32),
-                layers.LeakyReLU(negative_slope= 0.1),
-                layers.Dense(16),
+                layers.Dense(16,kernel_regularizer = regularizers.l2(0.001)),
                 layers.LeakyReLU(negative_slope= 0.1),
                 #layers.Dense(4, activation="linear",bias_initializer=initializers.constant(rewards["W"]))
-                layers.Dense(4, activation="linear")
+                layers.Dense(4, activation="linear",kernel_regularizer = regularizers.l2(0.001))
             ])
         else:
             try:
@@ -55,24 +55,35 @@ class Agent():
     def model_update(self):
         if self.status is None:
             raise ValueError("Model doesn't have a valid status")
-        print(self.status.last_game)
         df = data_augmentation(self.status.last_game)
-        games = df["game_id"].unique()
-        for game in games:
-            df2 = df.filter(pl.col("game_id") == game)
-            inp, Y, update = self.update_data_prep(df2)
-            Ynew = Y + update
-            self.nn.fit(inp,Ynew, epochs = episode_passes, batch_size = 1) #, sample_weight = weights
+        #games = df["game_id"].unique()
+        inp, Y, update = self.update_data_prep(df)
+        Ynew = Y + update
+        self.nn.fit(inp,Ynew, epochs = episode_passes, batch_size = 1) #, sample_weight = weights
 
 
     def action(self, df):
         df = add_closest_sl(df)
-        inp = df[:,"north_view_W":"west_view_G"].to_numpy()
+        inp = df.select(pl.selectors.ends_with("_input")).to_numpy()
         Y = self.nn.predict(inp, verbose = 0)
         rnum = np.random.random_sample()
         Y_soft = softmax_rowise(Y)
+        ############
+        import csv, os, time
+        logfile = "logs/qvalue_log.csv"
+        if not os.path.exists(logfile):
+            with open(logfile, "w", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow(["timestamp", "epsilon", "Q_N", "Q_S", "Q_E", "Q_W", "P_N", "P_S", "P_E", "P_W"])
+        with open(logfile, "a", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow([time.time(), self.epsilon, *Y[0], *Y_soft])
+
+        #####################################
+
         print("NORTH SOUTH EAST WEST")
         print(f"Y: {Y}")
+        
         print(f"Y prob: {Y_soft}")
         Y_prob_end = self.epsilon*np.array([1,1,1,1])/4  + ((1-self.epsilon))*Y_soft
         print(f"Y prob end: {Y_prob_end}")
@@ -104,8 +115,8 @@ class Agent():
 
     def update_data_prep(self, df):
         df = preprocess_games(df)
-        inp = df[:,"north_view_W":"west_view_G"].to_numpy()
-        close_reward = close_reward_multiplier * distance_reward(df)
+        inp = df.select(pl.selectors.ends_with("_input")).to_numpy()
+        #close_reward = close_reward_multiplier * distance_reward(df)
         Y = self.nn.predict(inp)
         max_next = np.max(Y, axis = 1)
         game_ouputs = pl.DataFrame({"game_id":df["game_id"],"max_next":max_next})
@@ -116,7 +127,8 @@ class Agent():
         max_next = np.tile(max_next[:,np.newaxis],4)
         onehot = direction_one_hot(df)
         #weights =np.log(np.abs(df["reward"].to_numpy() + close_reward) +1 )
-        r = np.tile((df["reward"].to_numpy() + close_reward)[:,np.newaxis],4)
+        #r = np.tile((df["reward"].to_numpy() + close_reward)[:,np.newaxis],4)
+        r = np.tile((df["reward"].to_numpy())[:,np.newaxis],4)
         update = alpha*( r  + gamma*max_next  - Y)*onehot
         return (inp, Y, update)
     
@@ -124,17 +136,23 @@ class Agent():
         df = data_augmentation(df)
         inp, Y, update = self.update_data_prep(df)
         Ynew = Y + update
-        self.nn.fit(inp,Ynew, epochs = episode_passes, batch_size = 256)
+        self.nn.fit(inp,Ynew, epochs = 1, batch_size = 1024)
     
 
     def replay_train_individual(self, df):
         df = data_augmentation(df)
-        games = df["game_id"].unique()
-        for game in tqdm(games, descr ="Training on replay"):
-            df2 = df.filter(pl.col("game_id") == game)
-            inp, Y, update = self.update_data_prep(df2)
+        games = df["game_id"].unique().sample(fraction = 1)
+        # for game in tqdm(games, desc ="Training on replay"):
+        #     df2 = df.filter(pl.col("game_id") == game)
+        #     inp, Y, update = self.update_data_prep(df2)
+        #     Ynew = Y + update
+        #     self.nn.fit(inp,Ynew, epochs = episode_passes, batch_size = 1) #, sample_weight = weights
+        
+        for i in range(20):
+            #df2 = df.filter(pl.col("game_id") == game)
+            inp, Y, update = self.update_data_prep(df)
             Ynew = Y + update
-            self.nn.fit(inp,Ynew, epochs = episode_passes, batch_size = 1) #, sample_weight = weights
+            self.nn.fit(inp,Ynew, epochs = episode_passes, batch_size = 1024) #, sample_weight = weights
         
 
 def distance_reward(df):

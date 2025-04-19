@@ -57,9 +57,6 @@ def training(args):
                 except:
                     print("Fatal! Cannot save model (make sure is .h5 or .keras)")
                     sys.exit(1)
-            if i % 200000 == 0 and i != 0:
-                print("retraining on best 20 games")
-                agent.replay_train()
         else:
             if i % 5 == 0 and i != 0:
                 try:
@@ -80,10 +77,11 @@ def main():
     if args.play:
         pygame.init()
         screen =         screen = pygame.display.set_mode((screen_width, screen_height))
-        game = Game(screen = screen)
-        game.sna.machine_mode = False
-        game.machine_mode = False
-        game.loop() 
+        while True:
+            game = Game(screen = screen, debug= args.debug)
+            game.sna.machine_mode = False
+            game.machine_mode = False
+            game.loop() 
         pygame.quit() 
     else:
         training(args)

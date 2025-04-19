@@ -14,22 +14,32 @@ class SnakeSegment(pygame.sprite.Sprite):
 
 
 class Snake:
-    def __init__(self,walls):
+    def __init__(self):
         self.segments = []
-        check = False
-        while not check:
-            head_x = np.random.randint(3,nsquares-3)
-            head_y = np.random.randint(3,nsquares-3)
-            nrot = np.random.randint(0,3)
-            rot_mat= np.array([[0,-1],[1,0] ])
-            self.direction = np.linalg.matrix_power(rot_mat,nrot).dot(np.array([1,0]))
-            check = max(np.array([head_x,head_y])-2*self.direction) < nsquares and min(np.array([head_x,head_y])-2*self.direction) >=0
+        #check = False
+        nrot = np.random.randint(0,3)
+        rot_mat= np.array([[0,-1],[1,0] ])
+        self.direction = np.linalg.matrix_power(rot_mat,nrot).dot(np.array([1,0]))
+        if self.direction[0] > 0:
+            head_x = np.random.randint(3,nsquares)
+        elif self.direction[0] < 0:
+            head_x = np.random.randint(0,nsquares-3)
+        else:
+            head_x = np.random.randint(0,nsquares)
+        if self.direction[1] > 0:
+            head_y = np.random.randint(3,nsquares)
+        elif self.direction[1] < 0:
+            head_y = np.random.randint(0,nsquares-3)
+        else:
+            head_y = np.random.randint(0,nsquares)
+        
+        #print(f"headx {head_x} heady{head_y} direction {self.direction}")
+        #    check = max(np.array([head_x,head_y])-2*self.direction) < nsquares and min(np.array([head_x,head_y])-2*self.direction) >=0
         
         self.segments.append(np.array([head_x,head_y]))
         self.segments.append(np.array([head_x,head_y])-self.direction)
         self.segments.append(np.array([head_x,head_y])-self.direction-self.direction)
         self.snake_segments = pygame.sprite.Group()
-        print(f"segments created {self.segments}")
         self.setgrowth = 0
         self.last_action = ""
 

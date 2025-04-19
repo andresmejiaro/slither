@@ -48,20 +48,78 @@ def first_char(s: str, char: str)-> int:
     return s.find(char) 
    
 def add_closest(df):
-    return df.with_columns([
+    #distance to closest one
+    df = df.with_columns([
         pl.col(direction).str.find(char).fill_null(-1).alias(f"{direction}_{char}")
         for direction in ["north_view", "south_view", "east_view", "west_view"]
         for char in ["W", "S", "R", "G"]
     ])
 
+    return df
+def add_inputs(df):
+    #distance to closest one
+    df = df.with_columns([
+        pl.col(direction).str.find(char).fill_null(-1).alias(f"{direction}_{char}_input")
+        for direction in ["north_view", "south_view", "east_view", "west_view"]
+        for char in ["W", "S", "R", "G"]
+    ])
+    #inverse distance to closest one
+    df = df.with_columns([
+        pl.when(pl.col(f"{direction}_{char}_input") >= 0).then(1/(1+pl.col(f"{direction}_{char}_input"))).otherwise(-1).alias(f"{direction}_{char}_inv_input")
+        for direction in ["north_view", "south_view", "east_view", "west_view"]
+        for char in ["W", "S", "R", "G"]
+    ])
+    #boolean is something there
+    df = df.with_columns([
+        pl.col(f"{direction}_{char}_input").lt(0).alias(f"{direction}_{char}_exists_input")
+        for direction in ["north_view", "south_view", "east_view", "west_view"]
+        for char in ["S", "R", "G"]
+    ])
+    # blocked dirrection you shall not pass
+    df = df.with_columns([
+        ((pl.col(f"{direction}_S_input")== 0) | (pl.col(f"{direction}_W_input")== 0)).cast(pl.Int8).alias(f"{direction}_blocked_input")
+        for direction in ["north_view", "south_view", "east_view", "west_view"]
+    ])  
+    #count of object in direction
+    df = df.with_columns([
+        pl.col(direction).str.count_matches(char).alias(f"{direction}_{char}_count_input")
+        for direction in ["north_view", "south_view", "east_view", "west_view"]
+        for char in [ "S", "G"]
+    ])
+    #count of object global
+    df = df.with_columns([
+        pl.sum_horizontal([
+            pl.col(f"{direction}_{char}_count_input")
+            for direction in ["north_view", "south_view", "east_view", "west_view"]
+        ]).alias(f"{char}_count_input")
+        for char in [ "S", "G"]
+    ])
+    #min distance across all direction / max inverse distance across all dir
+    df = df.with_columns([
+        pl.min_horizontal([
+            pl.col(f"{direction}_{char}_input")
+            for direction in ["north_view", "south_view", "east_view", "west_view"]
+        ]).alias(f"{char}_min_dist_input")
+        for char in ["W", "S", "R", "G"]
+    ])
+    df = df.with_columns([ 
+        pl.max_horizontal([
+            pl.col(f"{direction}_{char}_inv_input")
+            for direction in ["north_view", "south_view", "east_view", "west_view"]
+        ]).alias(f"{char}_max_inv_input")
+        for char in ["W", "S", "R", "G"]
+    ])
+
+    return df
+
 def add_closest_sl(df):
     #df = df.vstack(df)
-    df = add_closest(df)
+    df = add_inputs(df)
     #df = df[1,:]
     return df 
 
 def preprocess_games(df):
-    df = df.group_by("game_id").map_groups(add_closest)
+    df = add_inputs(df)
     return df
 
 

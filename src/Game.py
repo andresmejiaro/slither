@@ -14,7 +14,7 @@ class Game():
         self.walls = pygame.sprite.Group()
         self.apples = pygame.sprite.Group()
         self.create_walls()
-        self.sna = Snake(self.walls)
+        self.sna = Snake()
         self.status = None
         self.score = 0
         self.steps = 0
@@ -56,7 +56,8 @@ class Game():
             self.sna.snake_segments.draw(self.screen)
             self.apples.draw(self.screen) 
             pygame.display.flip() 
-        
+        if self.debug:
+            input("Press enter to continue")
         while True:
             if self.status is not None:
                 self.status.collect_board()
