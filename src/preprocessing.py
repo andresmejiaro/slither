@@ -202,13 +202,13 @@ def align_status_rewards(df):
     df = df.filter(pl.col("event").is_not_null())
     return df
 
-def direction_one_hot(df):
-    action_categories = np.array(["north", "south", "east", "west"])
-    actions = df["action"].to_numpy()
+# def direction_one_hot(df):
+#     action_categories = np.array(["north", "south", "east", "west"])
+#     actions = df["action"].to_numpy()
 
-    matches = actions[:, None] == action_categories  
-    indices = matches.argmax(axis=1)
+#     matches = actions[:, None] == action_categories  
+#     indices = matches.argmax(axis=1)
 
-    onehot = np.eye(len(action_categories))[indices]
-    return onehot
+#     onehot = np.eye(len(action_categories))[indices]
+#     return onehot
 

@@ -1,5 +1,4 @@
 import numpy as np
-import pygame
 import polars as pl
 import os
 import sys
@@ -13,27 +12,35 @@ np.set_printoptions(precision=2, suppress=True)
 from tqdm import tqdm
 
 
-def softmax_rowise(X):
-    exp_X = np.exp(X -np.max(X, axis=1, keepdims= True))
-    return exp_X /np.sum(exp_X, axis=1, keepdims=True)
-
 class Agent():
-    def __init__(self,save = None, load = None):
-        self.save = save
+    def __init__(self,save = None, load = None,input_size = 1, output_size = 1, l2 = 0.001, alpha = alpha, gamma=gamma,
+                 nn_learningrate = nn_learningrate):
+        """ 
+        if given load and save parameters it will try to read the model and 
+        save to the given files. If the file can't be opened it creates a network
+        with fixed topology except for the input_size and output_size. If for any 
+        reason you want a custom topology create the neural network and load it.
+        Output size is relevant for the action chooser. You should also give it even if the topology is given
+        """ 
+        self.savef = save
         self.load = load
+        self.alpha = alpha
+        self.gamma = gamma
+        self.nn_learningrate = nn_learningrate
+        self.output_size = output_size
         if self.load is None or not os.path.exists(self.load):
  
             self.nn = keras.Sequential([
-                layers.Dense(128, input_shape = (66,),kernel_regularizer = regularizers.l2(0.001)),
+                layers.Dense(128, input_shape = (input_size,),kernel_regularizer = regularizers.l2(l2)),
                 layers.LeakyReLU(negative_slope= 0.1),
-                layers.Dense(64,kernel_regularizer = regularizers.l2(0.001)),
+                layers.Dense(64,kernel_regularizer = regularizers.l2(l2)),
                 layers.LeakyReLU(negative_slope= 0.1),
-                layers.Dense(32,kernel_regularizer = regularizers.l2(0.001)),
+                layers.Dense(32,kernel_regularizer = regularizers.l2(l2)),
                 layers.LeakyReLU(negative_slope= 0.1),
-                layers.Dense(16,kernel_regularizer = regularizers.l2(0.001)),
+                layers.Dense(16,kernel_regularizer = regularizers.l2(l2)),
                 layers.LeakyReLU(negative_slope= 0.1),
                 #layers.Dense(4, activation="linear",bias_initializer=initializers.constant(rewards["W"]))
-                layers.Dense(4, activation="linear",kernel_regularizer = regularizers.l2(0.001))
+                layers.Dense(output_size, activation="linear",kernel_regularizer = regularizers.l2(l2))
             ])
         else:
             try:
@@ -45,118 +52,70 @@ class Agent():
             optimizer=keras.optimizers.Adam(learning_rate=nn_learningrate),
             loss="mse"  
         )
-        self.game_history = pl.DataFrame()
-        self.epsilon = 0
-        self.status = None
+ 
 
-    def set_status(self, status):
-        self.status = status
-
-    def model_update(self):
-        if self.status is None:
-            raise ValueError("Model doesn't have a valid status")
-        df = data_augmentation(self.status.last_game)
-        #games = df["game_id"].unique()
+    def model_update(self,df):
+        """"
+        Single db update does not take data aligment
+        """
         inp, Y, update = self.update_data_prep(df)
         Ynew = Y + update
         self.nn.fit(inp,Ynew, epochs = episode_passes, batch_size = 1) #, sample_weight = weights
 
 
-    def action(self, df):
-        df = add_closest_sl(df)
-        inp = df.select(pl.selectors.ends_with("_input")).to_numpy()
-        Y = self.nn.predict(inp, verbose = 0)
-        rnum = np.random.random_sample()
-        Y_soft = softmax_rowise(Y)
-        ############
-        import csv, os, time
-        logfile = "logs/qvalue_log.csv"
-        if not os.path.exists(logfile):
-            with open(logfile, "w", newline="") as f:
-                writer = csv.writer(f)
-                writer.writerow(["timestamp", "epsilon", "Q_N", "Q_S", "Q_E", "Q_W", "P_N", "P_S", "P_E", "P_W"])
-        with open(logfile, "a", newline="") as f:
-            writer = csv.writer(f)
-            writer.writerow([time.time(), self.epsilon, *Y[0], *Y_soft])
-
-        #####################################
-
-        print("NORTH SOUTH EAST WEST")
-        print(f"Y: {Y}")
+    def action(self, df, epsilon):
+        _,Y,_ = self.update_data_prep(df)
         
-        print(f"Y prob: {Y_soft}")
-        Y_prob_end = self.epsilon*np.array([1,1,1,1])/4  + ((1-self.epsilon))*Y_soft
-        print(f"Y prob end: {Y_prob_end}")
-        Y_soft = np.cumsum(Y_prob_end)
-        keys = {"left":False,
-                "right": False,
-                "up": False,
-                "down": False}
-        if (rnum < Y_soft[0]):
-            keys["up"] =True
-            print("UP")
-        elif (rnum < Y_soft[1]):
-            keys["down"] =True
-            print("DOWN")
-        elif (rnum < Y_soft[2]):
-            keys["right"] =True
-            print("RIGHT")
-        else:
-            keys["left"] =True
-            print("LEFT")
-        return keys
-    #Remember 0 is up
-    #1 is down
-    #2 is right
-    #3 is left
+        rnum = np.random.Generator.random(size = df.height)
+        random_action = np.random.Generator.integers(low= 0, high= self.output_size, size= df.height)
+        actions = np.argmax(Y, axis=1)
+        all_actions = pl.DataFrame({"actions":actions,"random_action":random_action, "random":rnum})
+        all_actions = all_actions.with_columns([
+            pl.when(pl.col("random")< epsilon).then(pl.col("random_action")).otherwise(pl.col("actions")).alias("final")
+        ])
+        return all_actions["final"].to_numpy()
+       
 
-
+    def action_one_hot(self,df):
+        return np.eye(self.output_size)[df["action"]]
 
 
     def update_data_prep(self, df):
-        df = preprocess_games(df)
-        inp = df.select(pl.selectors.ends_with("_input")).to_numpy()
-        #close_reward = close_reward_multiplier * distance_reward(df)
+        """
+        All df given must be in the following columns in that order:
+        episode_id: unique episode identifier
+        action: numeric categorical the actions correspond to the number given in the constructor
+        rewards: numeric reward for the action 
+        """        
+        inp = df[:,3:].to_numpy()
         Y = self.nn.predict(inp)
         max_next = np.max(Y, axis = 1)
-        game_ouputs = pl.DataFrame({"game_id":df["game_id"],"max_next":max_next})
+        game_ouputs = pl.DataFrame({"episode_id":df["episode_id"],"max_next":max_next})
         game_ouputs = game_ouputs.with_columns(
-            pl.col("max_next").shift(-1).over("game_id").fill_null(0)
+            pl.col("max_next").shift(-1).over("episode_id").fill_null(0)
         )
         max_next = game_ouputs[:,"max_next"].to_numpy()
-        max_next = np.tile(max_next[:,np.newaxis],4)
-        onehot = direction_one_hot(df)
-        #weights =np.log(np.abs(df["reward"].to_numpy() + close_reward) +1 )
-        #r = np.tile((df["reward"].to_numpy() + close_reward)[:,np.newaxis],4)
-        r = np.tile((df["reward"].to_numpy())[:,np.newaxis],4)
-        update = alpha*( r  + gamma*max_next  - Y)*onehot
+        r = df["reward"].to_numpy()
+        w = r + self.gamma*max_next
+        comp_reward = np.tile(w[:,np.newaxis],self.output_size)
+        onehot = self.action_one_hot(df)
+        update = self.alpha*(comp_reward  - Y)*onehot
         return (inp, Y, update)
     
     def replay_train(self, df):
-        df = data_augmentation(df)
         inp, Y, update = self.update_data_prep(df)
         Ynew = Y + update
         self.nn.fit(inp,Ynew, epochs = 1, batch_size = 1024)
     
 
     def replay_train_individual(self, df):
-        df = data_augmentation(df)
-        games = df["game_id"].unique().sample(fraction = 1)
-        # for game in tqdm(games, desc ="Training on replay"):
-        #     df2 = df.filter(pl.col("game_id") == game)
-        #     inp, Y, update = self.update_data_prep(df2)
-        #     Ynew = Y + update
-        #     self.nn.fit(inp,Ynew, epochs = episode_passes, batch_size = 1) #, sample_weight = weights
-        
-        for i in range(20):
-            #df2 = df.filter(pl.col("game_id") == game)
-            inp, Y, update = self.update_data_prep(df)
+        episodes = df["episode_id"].unique().sample(fraction = 1)
+        for episode in tqdm(episodes, desc ="Training on replay"):
+            df2 = df.filter(pl.col("episode_id") == episode)
+            inp, Y, update = self.update_data_prep(df2)
             Ynew = Y + update
-            self.nn.fit(inp,Ynew, epochs = episode_passes, batch_size = 1024) #, sample_weight = weights
+            self.nn.fit(inp,Ynew, epochs = episode_passes, batch_size = 512) #, sample_weight = weights
         
+    def save(self):
+        self.nn.save(self.savef)
 
-def distance_reward(df):
-    distances = df.select(pl.selectors.ends_with("_G")).to_numpy()
-    masked_distances = np.where(distances == -1, np.inf, distances)
-    row_min = np.min(masked_distances, axis=1)
-    return np.maximum(10-row_min,0)

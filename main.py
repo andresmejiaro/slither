@@ -1,5 +1,3 @@
-from src.Status import Status
-from src.Agent import Agent
 from src.Game import Game
 import argparse
 import sys
@@ -79,8 +77,6 @@ def main():
         screen =         screen = pygame.display.set_mode((screen_width, screen_height))
         while True:
             game = Game(screen = screen, debug= args.debug)
-            game.sna.machine_mode = False
-            game.machine_mode = False
             game.loop() 
         pygame.quit() 
     else:
