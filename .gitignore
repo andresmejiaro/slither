@@ -6,3 +6,4 @@ snakelogs.csv
 learn2slither.egg-info
 models
 *.keras
+*.jsonl

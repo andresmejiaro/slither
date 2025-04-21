@@ -1,18 +1,15 @@
 import pygame
-from game_settings import  nsquares, deltax, deltay, WHITE,xmax,xmin, ymax, ymin,  fps, rewards, max_steps
+from game_settings import  nsquares, deltax, deltay, WHITE,xmax,xmin, ymax, ymin,  fps
 import numpy as np
-
+import json
 
 
 
 class Game():
-    def __init__(self, headless = False, debug = False, screen = None, machine_mode = False):
+    def __init__(self,  debug = False, screen = None):
        
-        self.machine_mode = machine_mode
-        self.headless = headless
         self.screen = screen
-        if not headless:
-            self.clock = pygame.time.Clock()
+        self.clock = pygame.time.Clock()
         self.debug = debug
         self.dead = False
         self.board = np.full((10,10), '0', dtype='<U1')
@@ -26,6 +23,7 @@ class Game():
         ### starting state
         self.start_snake()
         self.add_apples()
+        self.paint_snake()
 
 
 
@@ -106,6 +104,11 @@ class Game():
             self.reward_history.append('W')
             self.dead = True
             return
+        for w in self.snake:
+            if np.array_equal(next_pos,w):
+                self.reward_history.append('S')
+                self.dead = True
+                return
         next_char = self.board[tuple(next_pos)]
         match next_char:
             case 'G':
@@ -122,10 +125,6 @@ class Game():
             case '0':
                 self.snake.insert(0, next_pos)
                 self.snake.pop()
-            case 'S':
-                self.reward_history.append('S')
-                self.dead = True
-                return
         self.reward_history.append(next_char)
         self.snakedir = mov_dir
                 
@@ -169,89 +168,34 @@ class Game():
 
     def cycle(self, action = -1):
         """loop designed to match cycle status -> action->reward"""
-        self.state_history.append(self.board)
+        self.state_history.append(self.board.copy())
         self.delete_snake()
-        self.action_history.append(self.get_snake_dir_from_n(action))
+        self.action_history.append(action)
         self.move_snake(action) #This adds to reward history
         self.paint_snake()
         self.add_apples()
 
+    def export_episode(self, episode_id="generic", exportfile = "logs/games.jsonl"):
+        logentry = self.get_game_info(episode_id)
+        with open(exportfile, "a") as f:
+            f.write(json.dumps(logentry)+ '\n')
 
-
+    def get_game_info(self,episode_id)->dict:
+        return {
+            "episode_id": episode_id,
+            "states": [x.tolist() for x in self.state_history],
+            "actions": [int(x[0]) for x in self.action_history],
+            "rewards": [str(w) for w in self.reward_history]    
+        }
 
     def loop(self):
         while not self.dead:
-            if not self.headless:
-                self.draw_board() #se
-            if not self.machine_mode:
-                action = update_keys()
-            else:
-                action = self.agent.action
+            self.draw_board() #se
+            action = update_keys()
             self.cycle(action)
             if self.debug:
                 input("Press enter to continue")
         
-    # def loop(self):
-    #     self.sna.update_sprites()
-    #     refresh_apples(self.apples, self.sna.snake_segments)
-    #     if not self.headless:
-    #         self.walls.draw(self.screen)
-    #         self.draw_background()
-    #         self.sna.snake_segments.draw(self.screen)
-    #         self.apples.draw(self.screen) 
-    #         pygame.display.flip() 
-    #     if self.debug:
-    #         input("Press enter to continue")
-    #     while True:
-    #         if self.status is not None:
-    #             self.status.collect_board()
-    #         if not self.headless:
-    #             for event in pygame.event.get():
-    #                 if event.type == pygame.QUIT:
-    #                     running = False
-    #             self.draw_background()
-    #         refresh_apples(self.apples,self.sna.snake_segments)
-    #         if not self.machine_mode:
-    #             keys = update_keys()
-    #         else:
-    #             keys = self.agent.action(self.status.pl_state)
-    #         self.sna.update_state(keys)
-    #         self.last_action = self.sna.last_action
-    #         self.sna.move()
-    #         self.last_reward = rewards["0"]
-    #         if self.sna.collided_snake(self.walls) or len(self.sna.segments) == 0 or self.steps == max_steps:
-    #             self.last_reward = rewards["W"]
-    #             print(f"ded: {self.score} {len(self.sna.segments)}")
-    #             self.dead = True
-    #         collided_apples = pygame.sprite.groupcollide(self.apples, self.sna.snake_segments, True, False)
-    #         for apple in collided_apples.keys():
-    #             if apple.color == "red":
-    #                 self.sna.setgrowth = -1
-    #                 self.last_reward = rewards["R"]
-    #             if apple.color == "green":
-    #                 self.sna.setgrowth = 1
-    #                 self.last_reward = rewards["G"]
-    #         self.score += self.last_reward
-    #         if self.status is not None:
-    #             self.status.update()
-    #         print(f"score: {self.score} {len(self.sna.segments)}")
-    #         if self.dead:
-    #             break
-    #         self.steps += 1
-    #         if not self.headless:
-    #             #move
-    #             self.sna.snake_segments.draw(self.screen)
-    #             #display
-    #             self.apples.draw(self.screen)
-    #             pygame.display.flip()
-    #             self.clock.tick(fps)
-    #         else:
-    #             self.clock.tick(0)
-    #         if self.debug:
-    #             input("Press enter to continue")
-
-
-    
 
 # Returns a list of all keys and their states
 def update_keys():

@@ -6,8 +6,7 @@ from tensorflow import keras
 from tensorflow.keras import initializers, layers
 from tensorflow.keras.models import load_model
 from tensorflow.keras import regularizers
-from . import add_inputs, load_filter_data, add_closest_sl, preprocess_games, data_augmentation, add_reward, align_status_rewards, direction_one_hot
-from game_settings import rewards, gamma, alpha, episode_passes, close_reward_multiplier, nn_learningrate
+from game_settings import rewards, gamma, alpha,  nn_learningrate
 np.set_printoptions(precision=2, suppress=True)
 from tqdm import tqdm
 
@@ -60,19 +59,22 @@ class Agent():
         """
         inp, Y, update = self.update_data_prep(df)
         Ynew = Y + update
-        self.nn.fit(inp,Ynew, epochs = episode_passes, batch_size = 1) #, sample_weight = weights
+        self.nn.fit(inp,Ynew, epochs = 1, batch_size = 1) #, sample_weight = weights
 
 
     def action(self, df, epsilon):
         _,Y,_ = self.update_data_prep(df)
         
-        rnum = np.random.Generator.random(size = df.height)
-        random_action = np.random.Generator.integers(low= 0, high= self.output_size, size= df.height)
+        generator = np.random.Generator(np.random.PCG64())
+        rnum = generator.random(size = df.height)
+        random_action = generator.integers(low= 0, high= self.output_size, size= df.height)
         actions = np.argmax(Y, axis=1)
         all_actions = pl.DataFrame({"actions":actions,"random_action":random_action, "random":rnum})
         all_actions = all_actions.with_columns([
             pl.when(pl.col("random")< epsilon).then(pl.col("random_action")).otherwise(pl.col("actions")).alias("final")
         ])
+        print("DOWN UP RIGHT LEFT")
+        print(f"{Y}")
         return all_actions["final"].to_numpy()
        
 
@@ -88,14 +90,14 @@ class Agent():
         rewards: numeric reward for the action 
         """        
         inp = df[:,3:].to_numpy()
-        Y = self.nn.predict(inp)
+        Y = self.nn.predict(inp, verbose = 0)
         max_next = np.max(Y, axis = 1)
         game_ouputs = pl.DataFrame({"episode_id":df["episode_id"],"max_next":max_next})
         game_ouputs = game_ouputs.with_columns(
             pl.col("max_next").shift(-1).over("episode_id").fill_null(0)
         )
         max_next = game_ouputs[:,"max_next"].to_numpy()
-        r = df["reward"].to_numpy()
+        r = df["rewards"].to_numpy()
         w = r + self.gamma*max_next
         comp_reward = np.tile(w[:,np.newaxis],self.output_size)
         onehot = self.action_one_hot(df)
@@ -114,8 +116,13 @@ class Agent():
             df2 = df.filter(pl.col("episode_id") == episode)
             inp, Y, update = self.update_data_prep(df2)
             Ynew = Y + update
-            self.nn.fit(inp,Ynew, epochs = episode_passes, batch_size = 512) #, sample_weight = weights
+            self.nn.fit(inp,Ynew, epochs = 1, batch_size = 512) #, sample_weight = weights
         
     def save(self):
         self.nn.save(self.savef)
-
+    
+    def loadf(self):
+        try:
+            self.nn = load_model(self.load)
+        except:
+            print("Fatal! Cannot load model (make sure is .h5 or .keras)")
