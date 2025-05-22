@@ -1,3 +1,3 @@
 from .Game import Game
 from .Agent import Agent
-from .Interpreter import Interpreter
+from .Interpreter import Interpreter, data_augmentation

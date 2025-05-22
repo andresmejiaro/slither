@@ -1,20 +1,20 @@
-## user modifiable
+# user modifiable
 
-screen_width, screen_height = 800, 600
+screen_width, screen_height = 1200, 900
 nsquares = 10
 fps = 5
 max_steps = 500
-rewards = {"0": -1, "W": -1000, "R": -100, "G": 500, "S": -1001}
+rewards = {"0": -10, "W": -1000, "R": -500, "G": 500, "S": -1000}
 
 # Training hyperparams
 gamma = 0.9
-alpha = 0.1
+alpha = 0.3
 nn_learningrate = 0.001
-epsilonstart = 1
-epsilonend = 1
-nfeatures = 66
+epsilonstart = 0.05
+epsilonend = 0.01
+nfeatures = 78
 
-## calculated
+# calculated
 xmin = 0.1*screen_width
 xmax = 0.9*screen_width
 ymin = 0.1*screen_height
@@ -29,8 +29,3 @@ WHITE = (255, 255, 255)
 RED = (255, 0, 0)
 GREEN = (0, 255, 0)
 BLUE = (0, 0, 255)
-
-
-
-
-
