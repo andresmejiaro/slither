@@ -4,5 +4,4 @@ argparse
 snakelogs.csv
 .pytest_cache
 learn2slither.egg-info
-models
-*.keras
+*.jsonl
