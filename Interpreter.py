@@ -169,7 +169,6 @@ class Interpreter():
         return df[:, 4:]
 
     @staticmethod
-    @staticmethod
     def print_view(view: pl.DataFrame):
         assert view.height == 1, "Pass a single view"
         assert all(

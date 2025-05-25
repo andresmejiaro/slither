@@ -5,13 +5,14 @@ nsquares = 10
 fps = 5
 max_steps = 500
 rewards = {"0": -10, "W": -1000, "R": -500, "G": 500, "S": -1000}
+logging = False
 
 # Training hyperparams
 gamma = 0.9
 alpha = 0.3
 nn_learningrate = 0.001
-epsilonstart = 1
-epsilonend = 0.1
+epsilonstart = 0.1
+epsilonend = 0.01
 nfeatures = 78
 
 # calculated

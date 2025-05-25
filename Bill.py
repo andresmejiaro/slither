@@ -3,7 +3,7 @@ from Game import Game
 from Interpreter import Interpreter
 import pygame
 from game_settings import gamma, alpha, nn_learningrate, epsilonstart
-from game_settings import epsilonend
+from game_settings import epsilonend, logging
 from game_settings import nfeatures, screen_height, screen_width, rewards
 import random
 import datetime
@@ -95,7 +95,8 @@ class Bill():
             Interpreter.agent_loop(agente, game, epsilon=epsilon, visual=False)
             info = game.get_game_info(epid)
             features = Interpreter.load_single_log(info)
-            game.export_episode(episode_id=epid, exportfile=self.logfile)
+            if logging:
+                game.export_episode(episode_id=epid, exportfile=self.logfile)
             features = Interpreter.rewards_to_numeric(features, rewards)
             agente.replay_train(features)
             if i % 5 and i != 0:
